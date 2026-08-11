@@ -62,12 +62,13 @@ func (h *Handler) Charge(w http.ResponseWriter, r *http.Request) {
 
 	// Call Stripe to create the charge.
 	// NOTE: IdempotencyKey is empty — this is the bug.
+	idempotencyKey := uuid.New().String()
 	result, err := h.stripe.CreateCharge(stripe.ChargeParams{
 		AmountCents:   req.AmountCents,
 		Currency:      req.Currency,
 		CustomerEmail: req.CustomerEmail,
 		OrderID:       req.OrderID,
-		IdempotencyKey: "", // BUG: should be uuid.New().String()
+		IdempotencyKey: idempotencyKey,
 	})
 	if err != nil {
 		http.Error(w, fmt.Sprintf("stripe charge failed: %v", err), http.StatusBadGateway)
