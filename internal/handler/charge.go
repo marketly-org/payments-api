@@ -28,18 +28,12 @@ func New(s *store.Store, c *stripe.Client) *Handler {
 }
 
 // Charge handles POST /charge.
-//
 // This endpoint creates a charge in Stripe and records it in Postgres.
-//
-// BUG: The charge is created without an idempotency key. When the
 // checkout-api times out waiting for this response and retries, Stripe
 // processes the charge again — double-charging the customer. After
 // enough retries, Stripe rate-limits the API key (429), which cascades
 // back to the checkout-api as a timeout, which triggers more retries.
-//
 // The fix is to generate an idempotency key (e.g. uuid.New().String())
-// and pass it as the IdempotencyKey field in ChargeParams. Stripe will
-// then deduplicate retries automatically.
 func (h *Handler) Charge(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -61,13 +55,11 @@ func (h *Handler) Charge(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	// Call Stripe to create the charge.
-	// NOTE: IdempotencyKey is empty — this is the bug.
 	result, err := h.stripe.CreateCharge(stripe.ChargeParams{
 		AmountCents:   req.AmountCents,
 		Currency:      req.Currency,
 		CustomerEmail: req.CustomerEmail,
 		OrderID:       req.OrderID,
-		IdempotencyKey: "", // BUG: should be uuid.New().String()
 	})
 	if err != nil {
 		http.Error(w, fmt.Sprintf("stripe charge failed: %v", err), http.StatusBadGateway)

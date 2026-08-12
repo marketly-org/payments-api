@@ -55,7 +55,6 @@ type ChargeResult struct {
 }
 
 // CreateCharge creates a charge in Stripe.
-//
 // If STRIPE_API_KEY is empty, this returns a simulated success — useful
 // for local dev and CI. In production, the real Stripe API is called.
 func (c *Client) CreateCharge(params ChargeParams) (*ChargeResult, error) {
@@ -84,7 +83,6 @@ func (c *Client) CreateCharge(params ChargeParams) (*ChargeResult, error) {
 	// Only set the Idempotency-Key header if one was provided. Without
 	// this header, Stripe treats every request as a new charge — so a
 	// retry (e.g. from the checkout-api timing out and retrying) will
-	// charge the customer twice. This is the bug.
 	if params.IdempotencyKey != "" {
 		req.Header.Set("Idempotency-Key", params.IdempotencyKey)
 	}
