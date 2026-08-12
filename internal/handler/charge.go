@@ -54,13 +54,32 @@ func (h *Handler) Charge(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 
-	// Call Stripe to create the charge.
-	result, err := h.stripe.CreateCharge(stripe.ChargeParams{
-		AmountCents:   req.AmountCents,
-		Currency:      req.Currency,
-		CustomerEmail: req.CustomerEmail,
-		OrderID:       req.OrderID,
-	})
+	// Generate an idempotency key to prevent duplicate charges on retries.
+	idempotencyKey := uuid.New().String()
+
+	// Call Stripe to create the charge with retry on rate limit errors.
+	var result *stripe.ChargeResult
+	var err error
+	maxRetries := 3
+	backoff := 500 * time.Millisecond
+	for i := 0; i <= maxRetries; i++ {
+		result, err = h.stripe.CreateCharge(stripe.ChargeParams{
+			AmountCents:    req.AmountCents,
+			Currency:       req.Currency,
+			CustomerEmail:  req.CustomerEmail,
+			OrderID:        req.OrderID,
+			IdempotencyKey: idempotencyKey,
+		})
+		if err == nil {
+			break
+		}
+		// Check if error is a rate limit error (HTTP 429).
+		if i == maxRetries || !isRateLimitError(err) {
+			break
+		}
+		time.Sleep(backoff)
+		backoff *= 2
+	}
 	if err != nil {
 		http.Error(w, fmt.Sprintf("stripe charge failed: %v", err), http.StatusBadGateway)
 		return
@@ -147,4 +166,49 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(v)
+}
+
+// isRateLimitError returns true if the error message indicates a Stripe rate limit error.
+func isRateLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	// Stripe returns 429 status code for rate limit errors.
+	// The error string contains "stripe error (429):" or "rate_limited"
+	errStr := err.Error()
+	if (len(errStr) >= 17 && errStr[:17] == "stripe error (429):") || containsIgnoreCase(errStr, "rate_limited") {
+		return true
+	}
+	return false
+}
+
+// containsIgnoreCase checks if s contains substr case-insensitively.
+func containsIgnoreCase(s, substr string) bool {
+	sLower := []rune{}
+	for _, r := range s {
+		if 'A' <= r && r <= 'Z' {
+			r += 'a' - 'A'
+		}
+		sLower = append(sLower, r)
+	}
+	subLower := []rune{}
+	for _, r := range substr {
+		if 'A' <= r && r <= 'Z' {
+			r += 'a' - 'A'
+		}
+		subLower = append(subLower, r)
+	}
+	for i := 0; i <= len(sLower)-len(subLower); i++ {
+		match := true
+		for j := 0; j < len(subLower); j++ {
+			if sLower[i+j] != subLower[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true
+		}
+	}
+	return false
 }
