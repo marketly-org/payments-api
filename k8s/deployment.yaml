@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: ghcr.io/marketly-org/payments-api:sha-39fd722
+          image: ghcr.io/marketly-org/payments-api:sha-8f0c5ff
           ports:
             - containerPort: 8080
           env:
