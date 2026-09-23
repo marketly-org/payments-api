@@ -29,11 +29,6 @@ func New(s *store.Store, c *stripe.Client) *Handler {
 
 // Charge handles POST /charge.
 // This endpoint creates a charge in Stripe and records it in Postgres.
-// checkout-api times out waiting for this response and retries, Stripe
-// processes the charge again — double-charging the customer. After
-// enough retries, Stripe rate-limits the API key (429), which cascades
-// back to the checkout-api as a timeout, which triggers more retries.
-// The fix is to generate an idempotency key (e.g. uuid.New().String())
 func (h *Handler) Charge(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
