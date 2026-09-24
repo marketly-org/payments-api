@@ -9,6 +9,7 @@ metadata:
   annotations:
     sentinel.io/repo: "marketly-org/payments-api"
     sentinel.io/branch: "main"
+    sentinel.io/auto-merge: "true"
 spec:
   replicas: 3
   selector:
